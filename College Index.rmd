@@ -1,0 +1,99 @@
+---
+title: "College Index"
+output:
+  pdf_document: default
+  html_document: default
+date: "2024-08-14"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+install.packages("ggplot2", repos = "http://cran.us.r-project.org")
+install.packages("dplyr", repos = "http://cran.us.r-project.org")
+install.packages("readr", repos = "http://cran.us.r-project.org")
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(readr)
+```
+
+```{r}
+acc <- read_csv("acc_10_20.csv")
+bigten <- read_csv("bigten_10_20.csv")
+outcomes <- read_csv("outcomes_10_20.csv")
+```
+
+```{r}
+setequal(names(acc), names(bigten))
+```
+```{r}
+# Horizontally and vertically combining bigten, acc, and outcomes
+college_data <- acc %>% bind_rows(bigten)
+
+college_data <- college_data %>%
+  inner_join(outcomes, by = c("year" = "year", "unitid" = "unitid"))
+```
+
+```{r}
+# Filtering out Wake Forest so we can use sat_avg
+college_data <- college_data %>% filter(unitid != 199847) 
+
+# We will create an index of selectivity based on average SAT and admission rate
+college_data %>% select(instnm, sat_avg, adm_rate) 
+```
+
+
+```{r}
+# Adding standardized variables for average SAT and admission rate
+college_data <- college_data %>% group_by(year) %>% mutate(across(c(sat_avg, adm_rate), scale, .names = "{col}_stnd")) 
+```
+
+
+```{r}
+# Adding a variable for a selectivity index where higher SATs and lower admission rates produce a higher index value
+college_data <- college_data %>% 
+  mutate(selec_index = 1*sat_avg_stnd - 1*adm_rate_stnd) 
+
+# Showing average SAT, admission rate, and selectivity index for 2020
+college_data  %>% 
+  filter(year == 2020) %>% 
+  select(instnm, sat_avg, adm_rate, selec_index) %>% 
+  arrange(desc(selec_index))
+```
+
+```{r}
+# Creating a selectivity ranking variable
+college_data <- college_data %>% group_by(year) %>% mutate(selec_rank = dense_rank(desc(selec_index)))
+
+# Showing the ranking with its components
+college_data %>% filter(year == 2019) %>% select(instnm, sat_avg,adm_rate, selec_index, selec_rank) %>% arrange(selec_rank)
+```
+
+
+```{r}
+# Let's use the University of Minnesota because they have the best name, the Golden Gophers
+```
+
+
+```{r}
+# Bar graph -- I chose a different year because Syracuse didn't publish SAT data for 2020
+ggplot(data=filter(college_data, year == 2019), aes(x = reorder(instnm,selec_index), y=selec_index, fill=selec_index)) +
+  geom_bar(stat="identity") + coord_flip() + labs(x = "University", y = "Selectivity Index", title = "Selectivity of ACC and Big 10 Universities in 2019", subtitle = "Based on Admission Rate and Average SAT Score")
+```
+
+```{r}
+# Again changing 2020 to 2019 to accomodate Syracuse
+
+ggplot(data=filter(college_data, year==2011 | year == 2019), aes(x = reorder(instnm,selec_index), y = selec_index)) + geom_point(size = 2, shape = "circle") + labs(x = "University", y = "Selectivity Index", title = "Selectivity of ACC and Big 10 Universities", subtitle = "Change from 2011 to 2019") + theme_bw() + coord_flip() + geom_point(aes(color = year))
+```
+
+
+
+
+
+
